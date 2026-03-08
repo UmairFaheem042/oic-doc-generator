@@ -1,9 +1,15 @@
 import { useIntegrationStore } from "../../stores/integrationStore"
 import { generateMarkdown } from "../../generators/markdownGenerator"
 import { generatePdf } from "../../generators/pdfGenerator"
+import FlowDiagram from "./FlowDiagram"
+import { useState, useCallback } from "react"
+import Toast     from "../ui/Toast"
+import EmptyState from "../ui/EmptyState"
 
 export default function ResultsView() {
   const { parsedMetadata, reset } = useIntegrationStore()
+  const [toast, setToast] = useState(null)
+  const showToast = useCallback((msg) => setToast(msg), [])
 
   if (!parsedMetadata) return null
 
@@ -11,6 +17,7 @@ export default function ResultsView() {
 
   function handleCopyMarkdown() {
     navigator.clipboard.writeText(markdown)
+    showToast("Markdown copied")
   }
 
   function handleDownloadMarkdown() {
@@ -62,6 +69,13 @@ export default function ResultsView() {
         <SummaryCard label="Fault Handlers" value={parsedMetadata.faultHandlers.length} />
         <SummaryCard label="Variables"     value={parsedMetadata.variables.length}     />
       </div>
+
+      {/* Flow Diagram */}
+      <Section title="Integration Flow">
+        <div className="bg-[#0c0c0e] border border-[#1c1c1f] rounded-xl p-5 overflow-x-auto">
+            <FlowDiagram />
+        </div>
+      </Section>
 
       {/* Triggers */}
       <Section title="Triggers" count={parsedMetadata.triggers.length}>
@@ -121,25 +135,29 @@ export default function ResultsView() {
       {/* Generated Markdown */}
       <Section title="Generated Documentation">
         <div className="relative">
-          {/* <pre className="
+          <pre className="
             bg-[#0c0c0e] border border-[#1c1c1f] rounded-xl
             p-6 text-[11.5px] leading-relaxed text-[#a8a49e]
             overflow-x-auto whitespace-pre-wrap
           ">
             {markdown}
-          </pre> */}
+          </pre>
 
           {/* Actions */}
           <div className="flex gap-3 mt-3">
-            {/* <ActionButton onClick={handleCopyMarkdown} label="Copy Markdown" /> */}
+            <ActionButton onClick={handleCopyMarkdown} label="Copy Markdown" />
             <ActionButton onClick={handleDownloadMarkdown} label="Download .md" />
             <ActionButton onClick={handleDownloadPdf}      label="Download PDF" primary />
           </div>
         </div>
       </Section>
 
+      {toast && (
+      <Toast message={toast} onDone={() => setToast(null)} />
+    )}
     </div>
   )
+  
 }
 
 // ─────────────────────────────────────────────
@@ -167,7 +185,7 @@ function Section({ title, count, children }) {
 
 function Table({ headers, rows }) {
   if (!rows.length) {
-    return <p className="text-[12px] text-[#2a2a2c] italic">None found</p>
+    return <EmptyState />
   }
 
   return (

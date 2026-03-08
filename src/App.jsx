@@ -1,11 +1,11 @@
 import { useIntegrationStore } from "./stores/integrationStore"
 import { parseIar } from "./parsers/iarParser"
-// import { parseIar, debugIar } from "./parsers/iarParser"
 import { parseJson } from "./parsers/jsonParser"
 import AppShell from "./components/layout/AppShell"
 import UploadPanel from "./components/upload/UploadPanel"
 import JsonPastePanel from "./components/upload/JsonPastePanel"
 import ResultsView from "./components/results/ResultsView"
+import Skeleton from "./components/ui/Skeleton"
 
 export default function App() {
   const {
@@ -27,6 +27,8 @@ export default function App() {
   async function handleGenerate() {
     try {
       setStatus("parsing")
+      // Temporary delay to see skeleton — remove after testing
+      await new Promise((r) => setTimeout(r, 1000))
   
       const metadata =
         inputMode === "file"
@@ -47,7 +49,7 @@ export default function App() {
 
   return (
     <AppShell>
-      {parsedMetadata ? <ResultsView/> : (
+      {parsedMetadata ? (<ResultsView/>) : isParsing ? (<Skeleton/>) : (
         <> 
         <header className="mb-14">
           <div className="flex items-center gap-2 mb-4">
@@ -126,11 +128,11 @@ export default function App() {
           </button>
 
           <p className="mt-3 text-[11px] text-[#2a2a2c] tracking-wider">
-            {isParsing
-              ? "Reading integration archive..."
-              : "Step 12 will render parsed metadata and the generated document"
-            }
-          </p>
+  {inputMode === "file"
+    ? "Supports Oracle Integration Archive exports · .iar"
+    : "Paste exported OIC integration metadata JSON"
+  }
+</p>
 
         </div>
         </>
