@@ -1,48 +1,39 @@
 import { useCallback, useRef } from "react"
 import { useIntegrationStore } from "../../stores/integrationStore"
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
+const MAX_FILE_SIZE = 50 * 1024 * 1024
 
 export default function UploadPanel() {
   const { rawFile, setRawFile, setError, setStatus, reset } = useIntegrationStore()
   const fileRef = useRef(null)
 
-  // ── Validation ──────────────────────────────
   function validate(file) {
-    if (!file) return "No file selected"
-    if (!file.name.endsWith(".iar")) return "Only .iar files are supported"
-    if (file.size > MAX_FILE_SIZE) return "File exceeds 50MB limit"
+    if (!file)                         return "No file selected"
+    if (!file.name.endsWith(".iar"))   return "Only .iar files are supported"
+    if (file.size > MAX_FILE_SIZE)     return "File exceeds 50MB limit"
     return null
   }
 
-  // ── Handler ─────────────────────────────────
   const handleFile = useCallback((file) => {
     const error = validate(file)
-    if (error) {
-      setError(error)
-      return
-    }
+    if (error) { setError(error); return }
     setRawFile(file)
     setStatus("ready")
   }, [setRawFile, setError, setStatus])
 
-  // ── Drag & Drop ──────────────────────────────
   function onDragOver(e) {
     e.preventDefault()
     e.currentTarget.dataset.drag = "true"
   }
-
   function onDragLeave(e) {
     e.currentTarget.dataset.drag = "false"
   }
-
   function onDrop(e) {
     e.preventDefault()
     e.currentTarget.dataset.drag = "false"
     handleFile(e.dataTransfer.files[0])
   }
 
-  // ── Render ───────────────────────────────────
   if (rawFile) return <FilePreview file={rawFile} onClear={reset} />
 
   return (
@@ -51,7 +42,7 @@ export default function UploadPanel() {
         ref={fileRef}
         type="file"
         accept=".iar"
-        className="hidden"
+        style={{ display: "none" }}
         onChange={(e) => handleFile(e.target.files[0])}
       />
 
@@ -60,22 +51,39 @@ export default function UploadPanel() {
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
-        className="
-          group border-2 border-dashed border-[#1c1c1f] rounded-xl
-          px-10 py-20 text-center cursor-pointer
-          transition-all duration-200
-          hover:border-[#ff8a00] hover:bg-[rgba(255,138,0,0.03)]
-          data-[drag=true]:border-[#ff8a00] data-[drag=true]:bg-[rgba(255,138,0,0.03)]
-        "
+        className="upload-zone"
+        style={{
+          border:        "2px dashed var(--border)",
+          borderRadius:  10,
+          padding:       "72px 40px",
+          textAlign:     "center",
+          cursor:        "pointer",
+          transition:    "all 0.2s",
+          background:    "var(--bg-card)",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = "var(--accent)"
+          e.currentTarget.style.background  = "var(--accent-bg)"
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = "var(--border)"
+          e.currentTarget.style.background  = "var(--bg-card)"
+        }}
       >
         <UploadIcon />
 
-        <p className="mt-4 text-[13px] text-[#555350]">
-          <span className="text-[#ff8a00]">Choose .iar file</span>
+        <p style={{ marginTop: 16, fontSize: 13, color: "var(--text-dim)" }}>
+          <span style={{ color: "var(--accent)", cursor: "pointer" }}>
+            Choose .iar file
+          </span>
           {" "}or drag and drop here
         </p>
 
-        <p className="mt-2 text-[11px] tracking-widest text-[#2a2a2c] uppercase">
+        <p style={{
+          marginTop: 8, fontSize: 11,
+          letterSpacing: "0.08em", textTransform: "uppercase",
+          color: "var(--text-ghost)",
+        }}>
           Oracle Integration Archive · Max 50MB
         </p>
       </div>
@@ -83,58 +91,76 @@ export default function UploadPanel() {
   )
 }
 
-// ─────────────────────────────────────────────
-// Sub-components
-// ─────────────────────────────────────────────
 
+// FilePreview
 function FilePreview({ file, onClear }) {
   const sizeKb = (file.size / 1024).toFixed(1)
 
   return (
-    <div className="bg-[#0c0c0e] border border-[#1c1c1f] rounded-xl p-5">
-
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-[#161618] rounded-lg flex items-center justify-center">
+    <div style={{
+      background:   "var(--bg-card)",
+      border:       "1px solid var(--border)",
+      borderRadius: 10,
+      padding:      20,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{
+            width: 40, height: 40,
+            background: "var(--bg-inset)",
+            borderRadius: 8,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
             <FileIcon />
           </div>
           <div>
-            <p className="text-[13px] text-[#e8e6e0]">{file.name}</p>
-            <p className="text-[11px] text-[#3d3b38] mt-0.5">{sizeKb} KB</p>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--text-body)" }}>
+              {file.name}
+            </p>
+            <p style={{ margin: "3px 0 0", fontSize: 11, color: "var(--text-faint)" }}>
+              {sizeKb} KB
+            </p>
           </div>
         </div>
 
         <button
           onClick={onClear}
-          className="text-[#3d3b38] hover:text-[#e8e6e0] transition-colors p-1"
-          aria-label="Remove file"
+          style={{
+            background: "none", border: "none",
+            cursor: "pointer", padding: 4,
+            color: "var(--text-faint)",
+            transition: "color 0.15s",
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.color = "var(--text-body)"}
+          onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-faint)"}
         >
           <CloseIcon />
         </button>
       </div>
 
-      <div className="mt-4 flex items-center gap-2 text-[#22c55e] text-[12px]">
+      <div style={{
+        marginTop: 14,
+        display: "flex", alignItems: "center", gap: 6,
+        color: "var(--green)", fontSize: 12,
+      }}>
         <CheckIcon />
         File validated — ready to parse
       </div>
-
     </div>
   )
 }
 
-// ─────────────────────────────────────────────
-// Icons
-// ─────────────────────────────────────────────
 
+// Icons
 function UploadIcon() {
   return (
-    <svg className="mx-auto text-[#222224] group-hover:text-[#ff8a00] transition-colors duration-200"
-      width="44" height="44" viewBox="0 0 24 24"
-      fill="none" stroke="currentColor" strokeWidth="1.5">
+    <svg width="44" height="44" viewBox="0 0 24 24"
+      fill="none" stroke="var(--border-muted)" strokeWidth="1.5"
+      style={{ margin: "0 auto", display: "block" }}>
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
       <polyline points="14 2 14 8 20 8" />
       <line x1="12" y1="12" x2="12" y2="18" />
-      <line x1="9" y1="15" x2="15" y2="15" />
+      <line x1="9"  y1="15" x2="15" y2="15" />
     </svg>
   )
 }
@@ -142,7 +168,7 @@ function UploadIcon() {
 function FileIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24"
-      fill="none" stroke="#ff8a00" strokeWidth="2">
+      fill="none" stroke="var(--accent)" strokeWidth="2">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
       <polyline points="14 2 14 8 20 8" />
     </svg>
@@ -153,8 +179,8 @@ function CloseIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24"
       fill="none" stroke="currentColor" strokeWidth="2">
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
+      <line x1="18" y1="6"  x2="6"  y2="18" />
+      <line x1="6"  y1="6"  x2="18" y2="18" />
     </svg>
   )
 }

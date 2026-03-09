@@ -1,7 +1,63 @@
 @import "tailwindcss";
 
-:body {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  background: #080809;
-  color: #e8e6e0;
+/* Dark theme (default)*/
+:root {
+  --bg:           #080809;
+  --bg-card:      #0c0c0e;
+  --bg-card-alt:  #0e0e10;
+  --bg-inset:     #161618;
+  --border:       #1c1c1f;
+  --border-muted: #2a2a2c;
+  --accent:       #ff8a00;
+  --accent-hover: #e67e00;
+  --accent-bg:    #1a0f00;
+  --text-primary: #f0ede8;
+  --text-body:    #e8e6e0;
+  --text-muted:   #a8a49e;
+  --text-dim:     #555350;
+  --text-faint:   #3d3b38;
+  --text-ghost:   #2a2a2c;
+  --green:        #22c55e;
+  --green-bg:     #0f2a1a;
+  --red:          #ef4444;
+  --red-bg:       #120808;
+  --red-border:   #7f1d1d;
+  --red-muted:    #fca5a5;
+  --top-line:     rgba(255,138,0,0.8);
+  --grid-line:    rgba(255,138,0,0.025);
+}
+
+/* Light theme */
+:root.light {
+  --bg:           #f5f4f0;
+  --bg-card:      #ffffff;
+  --bg-card-alt:  #f0efe9;
+  --bg-inset:     #e8e6e0;
+  --border:       #dddbd4;
+  --border-muted: #c8c5bc;
+  --accent:       #d97706;
+  --accent-hover: #b45309;
+  --accent-bg:    #fffbeb;
+  --text-primary: #1a1916;
+  --text-body:    #2a2825;
+  --text-muted:   #57534e;
+  --text-dim:     #a8a29e;
+  --text-faint:   #c8c5bc;
+  --text-ghost:   #dddbd4;
+  --green:        #16a34a;
+  --green-bg:     #f0fdf4;
+  --red:          #dc2626;
+  --red-bg:       #fff5f5;
+  --red-border:   #fca5a5;
+  --red-muted:    #dc2626;
+  --top-line:     rgba(217,119,6,0.9);
+  --grid-line:    rgba(217,119,6,0.04);
+}
+
+/* Base */
+body {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  background-color: var(--bg);
+  color: var(--text-body);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }

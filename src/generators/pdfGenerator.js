@@ -89,23 +89,19 @@ export function generatePdf(metadata) {
   drawAccentLine()
   y = MARGIN + 6
 
-  // Eyebrow
   setFont("normal", 7)
   text("ORACLE INTEGRATION CLOUD", MARGIN, y, THEME.accent)
   y += 5
 
-  // Title
   setFont("bold", 22)
   text(metadata.integrationName, MARGIN, y, THEME.textPrimary)
   y += 3
 
-  // Subtitle
   setFont("normal", 8)
   const subtitle = `v${metadata.version}  ·  ${metadata.pattern}  ·  ${metadata.percentComplete}% complete`
   text(subtitle, MARGIN, y + 4, THEME.textDim)
   y += 10
 
-  // Status badges
   if (!metadata.hasErrors)   badge("NO ERRORS",   MARGIN,      y, THEME.bgBadgeGood, THEME.textGreen)
   if (!metadata.hasWarnings) badge("NO WARNINGS",  MARGIN + 22, y, THEME.bgBadgeGood, THEME.textGreen)
   y += 8
@@ -138,20 +134,6 @@ export function generatePdf(metadata) {
   })
 
   y += cardH + 10
-
-  // ── Flow Diagram — inline after summary cards ──
-  checkPageBreak(60)
-  setFont("bold", 9)
-  text("INTEGRATION FLOW", MARGIN, y, THEME.textPrimary)
-  y += 2
-  hLine(y)
-  y += 10
-
-  const diagramHeight = drawFlowDiagram(doc, metadata, y)
-  y += diagramHeight + 8
-
-  hLine(y)
-  y += 10
 
   // ─────────────────────────────────────────────
   // Section helpers
@@ -328,164 +310,6 @@ export function generatePdf(metadata) {
   // ── Save ─────────────────────────────────────
   const filename = `${metadata.integrationName.replace(/\s+/g, "_")}_docs.pdf`
   doc.save(filename)
-}
-
-// ─────────────────────────────────────────────
-// Flow diagram renderer
-// Returns total height consumed in mm
-// ─────────────────────────────────────────────
-function drawFlowDiagram(doc, metadata, startY) {
-  const { triggers, invokes, faultHandlers } = metadata
-
-  const mainNodes = [
-    ...triggers.map((t) => ({ ...t, kind: "trigger" })),
-    ...invokes.map((i)  => ({ ...i, kind: "invoke"  })),
-  ]
-
-  if (!mainNodes.length) return 0
-
-  const NODE_W     = 42
-  const NODE_H     = 18
-  const H_GAP      = 10
-  const FAULT_DROP = 28
-  const START_X    = MARGIN
-
-  function nodeX(i) {
-    return START_X + i * (NODE_W + H_GAP)
-  }
-
-  const mainY  = startY
-  const faultY = mainY + NODE_H + FAULT_DROP
-
-  // ── Connector arrows between main nodes ─────
-  mainNodes.forEach((_, i) => {
-    if (i === mainNodes.length - 1) return
-    const x1 = nodeX(i) + NODE_W
-    const x2 = nodeX(i + 1)
-    const cy  = mainY + NODE_H / 2
-
-    doc.setDrawColor(...THEME.border)
-    doc.setLineWidth(0.4)
-    doc.line(x1, cy, x2, cy)
-
-    // Arrowhead
-    doc.setFillColor(...THEME.border)
-    doc.triangle(x2, cy, x2 - 2.5, cy - 1.5, x2 - 2.5, cy + 1.5, "F")
-  })
-
-  // ── Main flow nodes ─────────────────────────
-  mainNodes.forEach((node, i) => {
-    const x         = nodeX(i)
-    const isTrigger = node.kind === "trigger"
-
-    // Background
-    doc.setFillColor(...THEME.bgCard)
-    doc.roundedRect(x, mainY, NODE_W, NODE_H, 1.5, 1.5, "F")
-
-    // Border
-    doc.setDrawColor(...(isTrigger ? THEME.accent : THEME.border))
-    doc.setLineWidth(isTrigger ? 0.6 : 0.3)
-    doc.roundedRect(x, mainY, NODE_W, NODE_H, 1.5, 1.5, "S")
-
-    // Kind label
-    doc.setFont("courier", "bold")
-    doc.setFontSize(5.5)
-    doc.setTextColor(...(isTrigger ? THEME.accent : THEME.textDim))
-    doc.text(isTrigger ? "TRIGGER" : "INVOKE", x + 3, mainY + 5)
-
-    // Name
-    doc.setFont("courier", "bold")
-    doc.setFontSize(7.5)
-    doc.setTextColor(...(isTrigger ? THEME.accent : THEME.textPrimary))
-    doc.text(truncatePdf(node.name, 14), x + 3, mainY + 10)
-
-    // Connection
-    doc.setFont("courier", "normal")
-    doc.setFontSize(6)
-    doc.setTextColor(...THEME.textDim)
-    doc.text(truncatePdf(node.connection || node.adapterType || "", 18), x + 3, mainY + 15)
-  })
-
-  // ── Fault handlers ──────────────────────────
-  if (faultHandlers.length > 0) {
-    const anchorIndex = mainNodes.length - 1
-    const anchorX     = nodeX(anchorIndex) + NODE_W / 2
-    const anchorY     = mainY + NODE_H
-
-    // Vertical dashed drop line
-    doc.setDrawColor(239, 68, 68)
-    doc.setLineWidth(0.4)
-    doc.setLineDashPattern([1, 1], 0)
-    doc.line(anchorX, anchorY, anchorX, faultY - 2)
-    doc.setLineDashPattern([], 0)
-
-    // "fault" label
-    doc.setFont("courier", "normal")
-    doc.setFontSize(5.5)
-    doc.setTextColor(239, 68, 68)
-    doc.text("fault", anchorX + 1.5, anchorY + FAULT_DROP / 2)
-
-    // Arrowhead pointing down
-    doc.setFillColor(239, 68, 68)
-    doc.triangle(anchorX, faultY - 1, anchorX - 1.5, faultY - 4, anchorX + 1.5, faultY - 4, "F")
-
-    const FAULT_NODE_W = 38
-    const FAULT_NODE_H = 16
-    const FAULT_H_GAP  = 6
-    const totalFaultW  = faultHandlers.length * FAULT_NODE_W + (faultHandlers.length - 1) * FAULT_H_GAP
-    const faultStartX  = anchorX - totalFaultW / 2
-
-    faultHandlers.forEach((f, fi) => {
-      const fx = faultStartX + fi * (FAULT_NODE_W + FAULT_H_GAP)
-
-      // Horizontal connector between sibling fault nodes
-      if (fi > 0) {
-        doc.setDrawColor(...THEME.border)
-        doc.setLineWidth(0.3)
-        doc.setLineDashPattern([1, 1], 0)
-        doc.line(
-          faultStartX + (fi - 1) * (FAULT_NODE_W + FAULT_H_GAP) + FAULT_NODE_W,
-          faultY + FAULT_NODE_H / 2,
-          fx,
-          faultY + FAULT_NODE_H / 2
-        )
-        doc.setLineDashPattern([], 0)
-      }
-
-      // Node background
-      doc.setFillColor(18, 8, 8)
-      doc.roundedRect(fx, faultY, FAULT_NODE_W, FAULT_NODE_H, 1.5, 1.5, "F")
-
-      // Node border — dashed red
-      doc.setDrawColor(127, 29, 29)
-      doc.setLineWidth(0.3)
-      doc.setLineDashPattern([1.5, 1], 0)
-      doc.roundedRect(fx, faultY, FAULT_NODE_W, FAULT_NODE_H, 1.5, 1.5, "S")
-      doc.setLineDashPattern([], 0)
-
-      // FAULT label
-      doc.setFont("courier", "bold")
-      doc.setFontSize(5.5)
-      doc.setTextColor(239, 68, 68)
-      doc.text("FAULT", fx + 3, faultY + 5)
-
-      // Fault name
-      doc.setFont("courier", "bold")
-      doc.setFontSize(7)
-      doc.setTextColor(252, 165, 165)
-      doc.text(truncatePdf(f.faultName || "GenericFault", 13), fx + 3, faultY + 10)
-
-      // Action
-      doc.setFont("courier", "normal")
-      doc.setFontSize(6)
-      doc.setTextColor(127, 29, 29)
-      doc.text(f.action || "—", fx + 3, faultY + 14.5)
-    })
-
-    return NODE_H + FAULT_DROP + FAULT_NODE_H + 10
-  }
-
-  return NODE_H + 10
 }
 
 function truncatePdf(str, max) {

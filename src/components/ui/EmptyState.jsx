@@ -1,10 +1,28 @@
 export default function EmptyState({ message = "None found" }) {
-    return (
-      <div className="flex items-center gap-3 py-4 px-2">
-        <div className="w-px h-4 bg-[#1c1c1f]" />
-        <p className="text-[12px] text-[#2a2a2c] tracking-widest italic font-mono">
-          {message}
-        </p>
-      </div>
-    )
-  }
+  return (
+    <div style={{
+      display:    "flex",
+      alignItems: "center",
+      gap:        12,
+      padding:    "14px 4px",
+    }}>
+      <div style={{
+        width:      2,
+        height:     16,
+        background: "var(--border)",
+        borderRadius: 2,
+        flexShrink: 0,
+      }} />
+      <p style={{
+        margin:        0,
+        fontSize:      12,
+        letterSpacing: "0.06em",
+        color:         "var(--text-ghost)",
+        fontStyle:     "italic",
+        fontFamily:    "inherit",
+      }}>
+        {message}
+      </p>
+    </div>
+  )
+}

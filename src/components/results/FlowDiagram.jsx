@@ -12,8 +12,36 @@ const ZOOM_MIN  = 0.3
 const ZOOM_MAX  = 2.5
 const ZOOM_STEP = 0.1
 
+// ── Theme-aware color maps ───────────────────
+function getColors(theme) {
+  const dark = theme === "dark"
+  return {
+    nodeBg:        dark ? "#0c0c0e"  : "#ffffff",
+    triggerBg:     dark ? "#1a0f00"  : "#fffbeb",
+    triggerBorder: dark ? "#ff8a00"  : "#d97706",
+    triggerText:   dark ? "#ff8a00"  : "#d97706",
+    invokeText:    dark ? "#e8e6e0"  : "#2a2825",
+    invokeBorder:  dark ? "#1c1c1f"  : "#dddbd4",
+    kindColor:     dark ? "#3d3b38"  : "#a8a29e",
+    subText:       dark ? "#555350"  : "#a8a29e",
+    adapterText:   dark ? "#2a2a2c"  : "#c8c5bc",
+    connector:     dark ? "#2a2a2d"  : "#dddbd4",
+    faultBg:       dark ? "#120808"  : "#fff5f5",
+    faultBorder:   dark ? "#7f1d1d"  : "#fca5a5",
+    faultLabel:    dark ? "#ef4444"  : "#dc2626",
+    faultText:     dark ? "#fca5a5"  : "#dc2626",
+    faultAction:   dark ? "#7f1d1d"  : "#fca5a5",
+    faultLine:     dark ? "#ef4444"  : "#dc2626",
+    arrowFill:     dark ? "#3d3b38"  : "#c8c5bc",
+    zoomBg:        dark ? "#0c0c0e"  : "#ffffff",
+    zoomBorder:    dark ? "#1c1c1f"  : "#dddbd4",
+    zoomColor:     dark ? "#3d3b38"  : "#a8a29e",
+    hintColor:     dark ? "#2a2a2c"  : "#c8c5bc",
+  }
+}
+
 export default function FlowDiagram() {
-  const { parsedMetadata } = useIntegrationStore()
+  const { parsedMetadata, theme } = useIntegrationStore()
 
   const containerRef = useRef(null)
   const dragStart    = useRef(null)
@@ -23,6 +51,7 @@ export default function FlowDiagram() {
 
   if (!parsedMetadata) return null
 
+  const C = getColors(theme)
   const { triggers, invokes, faultHandlers } = parsedMetadata
 
   const mainNodes = [
@@ -30,11 +59,27 @@ export default function FlowDiagram() {
     ...invokes.map((i)  => ({ ...i, kind: "invoke"  })),
   ]
 
-  const hasFaults = faultHandlers.length > 0
-  const svgW = MARGIN_X * 2 + mainNodes.length * NODE_W + (mainNodes.length - 1) * H_GAP
-  const svgH = hasFaults
+  const hasFaults   = faultHandlers.length > 0
+  // const svgW        = MARGIN_X * 2 + mainNodes.length * NODE_W + (mainNodes.length - 1) * H_GAP
+  // ── Calculate fault row width ────────────────
+const faultNodeW  = 130
+const faultHGap   = 16
+const totalFaultW = faultHandlers.length * faultNodeW + (faultHandlers.length - 1) * faultHGap
+
+// Fault row is centered under the last node
+const lastNodeCenterX = MARGIN_X + (mainNodes.length - 1) * (NODE_W + H_GAP) + NODE_W / 2
+const faultRowLeft    = lastNodeCenterX - totalFaultW / 2
+const faultRowRight   = lastNodeCenterX + totalFaultW / 2
+
+// SVG width must fit both the main node row AND the fault row
+const mainRowWidth = MARGIN_X * 2 + mainNodes.length * NODE_W + (mainNodes.length - 1) * H_GAP
+const svgW = Math.max(mainRowWidth, faultRowRight + MARGIN_X)
+  const svgH        = hasFaults
     ? MARGIN_Y + NODE_H + FAULT_OFFSET + NODE_H + MARGIN_Y
     : MARGIN_Y + NODE_H + MARGIN_Y
+
+  // Container height adapts to content
+  const containerH  = hasFaults ? 340 : 220
 
   function nodeX(i) {
     return MARGIN_X + i * (NODE_W + H_GAP)
@@ -42,6 +87,22 @@ export default function FlowDiagram() {
 
   const mainY  = MARGIN_Y
   const faultY = mainY + NODE_H + FAULT_OFFSET
+
+  // ── Fit to view ──────────────────────────────
+  const fitToView = useCallback(() => {
+    if (!containerRef.current) return
+    const containerW = containerRef.current.offsetWidth
+    const padding    = 48
+    const scaleX     = (containerW - padding) / svgW
+    const scaleY     = (containerH - padding) / svgH
+    const scale      = Math.min(scaleX, scaleY, 1)
+    setTransform({ x: padding / 2, y: padding / 2, scale })
+  }, [svgW, svgH, containerH])
+
+  // Auto fit on mount and when data changes
+  useEffect(() => {
+    fitToView()
+  }, [fitToView])
 
   // ── Wheel zoom ───────────────────────────────
   const handleWheel = useCallback((e) => {
@@ -60,7 +121,7 @@ export default function FlowDiagram() {
     return () => el.removeEventListener("wheel", handleWheel)
   }, [handleWheel])
 
-  // ── Global mouseup — always ends drag ────────
+  // ── Global mouseup ───────────────────────────
   useEffect(() => {
     function handleGlobalMouseUp() {
       setDragging(false)
@@ -84,14 +145,10 @@ export default function FlowDiagram() {
 
   const onMouseMove = useCallback((e) => {
     if (!dragging) return
-    // Read ref into local variable before setTransform to avoid
-    // stale closure access after ref is nulled by concurrent mouseup
     const start = dragStart.current
     if (!start) return
-
     const dx = e.clientX - start.mx
     const dy = e.clientY - start.my
-
     setTransform((prev) => ({
       ...prev,
       x: start.tx + dx,
@@ -99,7 +156,7 @@ export default function FlowDiagram() {
     }))
   }, [dragging])
 
-  // ── Zoom controls ─────────────────────────────
+  // ── Zoom buttons ─────────────────────────────
   function zoomIn()    { setTransform((p) => ({ ...p, scale: Math.min(ZOOM_MAX, p.scale + ZOOM_STEP) })) }
   function zoomOut()   { setTransform((p) => ({ ...p, scale: Math.max(ZOOM_MIN, p.scale - ZOOM_STEP) })) }
   function zoomReset() { setTransform({ x: 0, y: 0, scale: 1 }) }
@@ -107,27 +164,56 @@ export default function FlowDiagram() {
   const cursor = dragging ? "grabbing" : "grab"
 
   return (
-    <div className="relative">
+    <div style={{ position: "relative" }}>
 
       {/* Zoom controls */}
-      <div className="absolute top-3 right-3 z-10 flex items-center gap-1">
-        <ZoomButton onClick={zoomOut} label="−" />
+      <div style={{
+        position: "absolute", top: 12, right: 12, zIndex: 10,
+        display: "flex", alignItems: "center", gap: 4,
+      }}>
+        <ZoomButton onClick={fitToView} label="⊡" C={C} title="Fit to view" />
+        <ZoomButton onClick={zoomOut}   label="−" C={C} title="Zoom out" />
         <button
           onClick={zoomReset}
-          className="
-            text-[10px] tracking-widest px-2 py-1 min-w-[44px]
-            bg-[#0c0c0e] border border-[#1c1c1f] text-[#3d3b38]
-            hover:text-[#ff8a00] hover:border-[#ff8a00]
-            transition-all duration-150 rounded font-mono
-          "
+          style={{
+            fontSize:      10,
+            letterSpacing: "0.08em",
+            padding:       "4px 8px",
+            minWidth:      44,
+            background:    C.zoomBg,
+            border:        `1px solid ${C.zoomBorder}`,
+            color:         C.zoomColor,
+            borderRadius:  4,
+            cursor:        "pointer",
+            fontFamily:    "inherit",
+            transition:    "all 0.15s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = "var(--accent)"
+            e.currentTarget.style.color       = "var(--accent)"
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = C.zoomBorder
+            e.currentTarget.style.color       = C.zoomColor
+          }}
         >
           {Math.round(transform.scale * 100)}%
         </button>
-        <ZoomButton onClick={zoomIn} label="+" />
+        <ZoomButton onClick={zoomIn}    label="+" C={C} title="Zoom in" />
       </div>
 
       {/* Hint */}
-      <div className="absolute bottom-3 left-3 z-10 text-[10px] text-[#2a2a2c] tracking-wider select-none pointer-events-none">
+      <div style={{
+        position:      "absolute",
+        bottom:        12,
+        left:          12,
+        zIndex:        10,
+        fontSize:      10,
+        letterSpacing: "0.08em",
+        color:         C.hintColor,
+        userSelect:    "none",
+        pointerEvents: "none",
+      }}>
         scroll to zoom · drag to pan
       </div>
 
@@ -138,33 +224,32 @@ export default function FlowDiagram() {
         onMouseMove={onMouseMove}
         style={{
           cursor,
-          overflow: "hidden",
-          height: 260,
-          userSelect: "none",
+          overflow:         "hidden",
+          height:           containerH,
+          userSelect:       "none",
           WebkitUserSelect: "none",
-          MozUserSelect: "none",
+          MozUserSelect:    "none",
         }}
       >
-        {/* Transformed layer */}
-        <div
-  style={{
-    transform: `translate(${transform.x}px, ${transform.y}px)`,
-    transformOrigin: "top left",
-    display: "inline-block",
-  }}
->
-  <svg
-    width={svgW * transform.scale}
-    height={svgH * transform.scale}
-    viewBox={`0 0 ${svgW} ${svgH}`}
-    xmlns="http://www.w3.org/2000/svg"
-  >
+        <div style={{
+          transform:       `translate(${transform.x}px, ${transform.y}px)`,
+          transformOrigin: "top left",
+          display:         "inline-block",
+        }}>
+          <svg
+            width={svgW * transform.scale}
+            height={svgH * transform.scale}
+            viewBox={`0 0 ${svgW} ${svgH}`}
+            xmlns="http://www.w3.org/2000/svg"
+          >
             <defs>
-              <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-                <path d="M0,0 L0,6 L8,3 z" fill="#3d3b38" />
+              <marker id="arrow" markerWidth="8" markerHeight="8"
+                refX="6" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L8,3 z" fill={C.arrowFill} />
               </marker>
-              <marker id="arrow-fault" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-                <path d="M0,0 L0,6 L8,3 z" fill="#ef4444" />
+              <marker id="arrow-fault" markerWidth="8" markerHeight="8"
+                refX="6" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L8,3 z" fill={C.faultLine} />
               </marker>
               <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
                 <feGaussianBlur stdDeviation="2.5" result="blur" />
@@ -175,23 +260,22 @@ export default function FlowDiagram() {
               </filter>
             </defs>
 
-            {/* Connector arrows — main flow */}
+            {/* Connector arrows */}
             {mainNodes.map((_, i) => {
               if (i === mainNodes.length - 1) return null
               const x1 = nodeX(i) + NODE_W
               const x2 = nodeX(i + 1)
               const cy = mainY + NODE_H / 2
               return (
-                <line
-                  key={`conn-${i}`}
+                <line key={`conn-${i}`}
                   x1={x1} y1={cy} x2={x2 - 2} y2={cy}
-                  stroke="#2a2a2d" strokeWidth="1.5"
+                  stroke={C.connector} strokeWidth="1.5"
                   markerEnd="url(#arrow)"
                 />
               )
             })}
 
-            {/* Fault drop lines + fault nodes */}
+            {/* Fault section */}
             {hasFaults && (() => {
               const anchorX     = nodeX(mainNodes.length - 1) + NODE_W / 2
               const anchorY     = mainY + NODE_H
@@ -202,25 +286,19 @@ export default function FlowDiagram() {
 
               return (
                 <g>
-                  {/* Vertical dashed drop */}
                   <line
                     x1={anchorX} y1={anchorY}
                     x2={anchorX} y2={faultY - 4}
-                    stroke="#ef4444" strokeWidth="1"
+                    stroke={C.faultLine} strokeWidth="1"
                     strokeDasharray="3 3"
                     markerEnd="url(#arrow-fault)"
                   />
-
-                  {/* "fault" label */}
                   <text
                     x={anchorX + 5} y={anchorY + FAULT_OFFSET / 2}
-                    fontSize="8" fill="#ef4444"
-                    fontFamily="courier, monospace" opacity="0.7"
-                  >
+                    fontSize="8" fill={C.faultLine}
+                    fontFamily="courier, monospace" opacity="0.7">
                     fault
                   </text>
-
-                  {/* Fault nodes */}
                   {faultHandlers.map((f, fi) => {
                     const fx = faultStartX + fi * (faultNodeW + faultHGap)
                     return (
@@ -230,7 +308,7 @@ export default function FlowDiagram() {
                             x1={faultStartX + (fi - 1) * (faultNodeW + faultHGap) + faultNodeW}
                             y1={faultY + NODE_H / 2}
                             x2={fx} y2={faultY + NODE_H / 2}
-                            stroke="#2a2a2d" strokeWidth="1"
+                            stroke={C.connector} strokeWidth="1"
                             strokeDasharray="3 3"
                           />
                         )}
@@ -239,6 +317,7 @@ export default function FlowDiagram() {
                           w={faultNodeW} h={NODE_H}
                           label={f.faultName || "GenericFault"}
                           action={f.action}
+                          C={C}
                         />
                       </g>
                     )
@@ -247,7 +326,7 @@ export default function FlowDiagram() {
               )
             })()}
 
-            {/* Main flow nodes */}
+            {/* Main nodes */}
             {mainNodes.map((node, i) => (
               <FlowNode
                 key={`node-${i}`}
@@ -255,6 +334,7 @@ export default function FlowDiagram() {
                 w={NODE_W}   h={NODE_H}
                 node={node}
                 isTrigger={node.kind === "trigger"}
+                C={C}
               />
             ))}
           </svg>
@@ -268,31 +348,30 @@ export default function FlowDiagram() {
 // FlowNode
 // ─────────────────────────────────────────────
 
-function FlowNode({ x, y, w, h, node, isTrigger }) {
+function FlowNode({ x, y, w, h, node, isTrigger, C }) {
   return (
     <g filter={isTrigger ? "url(#glow)" : undefined}>
-      <rect
-        x={x} y={y} width={w} height={h} rx="6" ry="6"
-        fill={isTrigger ? "#1a0f00" : "#0c0c0e"}
-        stroke={isTrigger ? "#ff8a00" : "#1c1c1f"}
+      <rect x={x} y={y} width={w} height={h} rx="6" ry="6"
+        fill={isTrigger ? C.triggerBg     : C.nodeBg}
+        stroke={isTrigger ? C.triggerBorder : C.invokeBorder}
         strokeWidth={isTrigger ? "1.5" : "0.8"}
       />
       <text x={x + 8} y={y + 13} fontSize="6.5"
-        fill={isTrigger ? "#ff8a00" : "#3d3b38"}
+        fill={isTrigger ? C.triggerText : C.kindColor}
         fontFamily="courier, monospace" fontWeight="bold" letterSpacing="1">
         {isTrigger ? "TRIGGER" : "INVOKE"}
       </text>
       <text x={x + 8} y={y + 26} fontSize="9.5"
-        fill={isTrigger ? "#ff8a00" : "#e8e6e0"}
+        fill={isTrigger ? C.triggerText : C.invokeText}
         fontFamily="courier, monospace" fontWeight="bold">
         {truncate(node.name, 17)}
       </text>
-      <text x={x + 8} y={y + 38} fontSize="7.5" fill="#555350"
-        fontFamily="courier, monospace">
+      <text x={x + 8} y={y + 38} fontSize="7.5"
+        fill={C.subText} fontFamily="courier, monospace">
         {truncate(node.connection || node.adapterType || "", 20)}
       </text>
-      <text x={x + w - 8} y={y + h - 8} fontSize="6" fill="#2a2a2c"
-        fontFamily="courier, monospace" textAnchor="end">
+      <text x={x + w - 8} y={y + h - 8} fontSize="6"
+        fill={C.adapterText} fontFamily="courier, monospace" textAnchor="end">
         {(node.binding || node.adapterType || "").toUpperCase()}
       </text>
     </g>
@@ -303,24 +382,25 @@ function FlowNode({ x, y, w, h, node, isTrigger }) {
 // FaultNode
 // ─────────────────────────────────────────────
 
-function FaultNode({ x, y, w, h, label, action }) {
+function FaultNode({ x, y, w, h, label, action, C }) {
   return (
     <g>
-      <rect
-        x={x} y={y} width={w} height={h} rx="6" ry="6"
-        fill="#120808" stroke="#7f1d1d"
+      <rect x={x} y={y} width={w} height={h} rx="6" ry="6"
+        fill={C.faultBg} stroke={C.faultBorder}
         strokeWidth="0.8" strokeDasharray="3 2"
       />
-      <text x={x + 8} y={y + 13} fontSize="6.5" fill="#ef4444"
+      <text x={x + 8} y={y + 13} fontSize="6.5"
+        fill={C.faultLabel}
         fontFamily="courier, monospace" fontWeight="bold" letterSpacing="1">
         FAULT
       </text>
-      <text x={x + 8} y={y + 26} fontSize="9" fill="#fca5a5"
+      <text x={x + 8} y={y + 26} fontSize="9"
+        fill={C.faultText}
         fontFamily="courier, monospace" fontWeight="bold">
         {truncate(label, 16)}
       </text>
-      <text x={x + 8} y={y + 38} fontSize="7.5" fill="#7f1d1d"
-        fontFamily="courier, monospace">
+      <text x={x + 8} y={y + 38} fontSize="7.5"
+        fill={C.faultAction} fontFamily="courier, monospace">
         {action}
       </text>
     </g>
@@ -331,16 +411,34 @@ function FaultNode({ x, y, w, h, label, action }) {
 // ZoomButton
 // ─────────────────────────────────────────────
 
-function ZoomButton({ onClick, label }) {
+function ZoomButton({ onClick, label, C, title }) {
   return (
     <button
       onClick={onClick}
-      className="
-        w-7 h-7 flex items-center justify-center
-        bg-[#0c0c0e] border border-[#1c1c1f] rounded
-        text-[#3d3b38] hover:text-[#ff8a00] hover:border-[#ff8a00]
-        transition-all duration-150 text-[14px] font-mono
-      "
+      title={title}
+      style={{
+        width:          28,
+        height:         28,
+        display:        "flex",
+        alignItems:     "center",
+        justifyContent: "center",
+        background:     C.zoomBg,
+        border:         `1px solid ${C.zoomBorder}`,
+        borderRadius:   4,
+        cursor:         "pointer",
+        color:          C.zoomColor,
+        fontSize:       14,
+        fontFamily:     "inherit",
+        transition:     "all 0.15s",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = "var(--accent)"
+        e.currentTarget.style.color       = "var(--accent)"
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = C.zoomBorder
+        e.currentTarget.style.color       = C.zoomColor
+      }}
     >
       {label}
     </button>
