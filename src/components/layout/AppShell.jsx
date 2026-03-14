@@ -1,7 +1,12 @@
 import { useIntegrationStore } from "../../stores/integrationStore"
 
+const VIEW_LABELS = {
+  upload:  "Upload",
+  results: "Results",
+}
+
 export default function AppShell({ children }) {
-  const { theme, toggleTheme } = useIntegrationStore()
+  const { theme, toggleTheme, currentView, navigate } = useIntegrationStore()
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text-body)" }}>
@@ -38,6 +43,8 @@ export default function AppShell({ children }) {
             OIC Doc Generator
           </span>
         </div>
+
+
 
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <span style={{

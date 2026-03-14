@@ -1,123 +1,228 @@
-/**
- * Generates a Markdown documentation string from normalized integration metadata.
- * @param {IntegrationMetadata} metadata - Output from iarParser or jsonParser
- * @returns {string} - Full Markdown document
- */
+import { analyze } from "../analyzers/integrationAnalyzer"
+
 export function generateMarkdown(metadata) {
-    const sections = [
-      buildHeader(metadata),
-      buildOverview(metadata),
-      buildTriggers(metadata.triggers),
-      buildInvokes(metadata.invokes),
-      buildFaultHandlers(metadata.faultHandlers),
-      buildVariables(metadata.variables),
-      buildFooter(),
-    ]
-  
-    return sections.filter(Boolean).join("\n\n---\n\n")
-  }
-  
-  // ─────────────────────────────────────────────
-  // Section builders
-  // ─────────────────────────────────────────────
-  
-  function buildHeader({ integrationName, version }) {
-    return [
-      `# ${integrationName}`,
-      `> **Version:** ${version}`,
-    ].join("\n")
-  }
-  
-  function buildOverview({ description, pattern, source, fileName }) {
-    const lines = ["## Overview"]
-  
-    if (description) lines.push(description)
-  
-    lines.push(buildTable(
-      ["Field", "Value"],
+  const sections = []
+
+  // Header 
+  sections.push(
+    `# ${metadata.integrationName}`,
+    [
+      `**Version:** ${metadata.version}`,
+      `**Pattern:** ${metadata.pattern}`,
+      `**Completion:** ${metadata.percentComplete}%`,
+      metadata.description ? `**Description:** ${metadata.description}` : null,
+    ].filter(Boolean).join("  \n")
+  )
+
+  // Summary 
+  sections.push(
+    `## Summary`,
+    buildTable(
+      ["Metric", "Count"],
       [
-        ["Pattern", pattern],
-        ["Source", source === "iar" ? `IAR Archive (${fileName})` : "JSON Metadata"],
-        ["Generated", new Date().toUTCString()],
+        ["Triggers",       metadata.triggers.length],
+        ["Invokes",        metadata.invokes.length],
+        ["Fault Handlers", metadata.faultHandlers.length],
+        ["Variables",      metadata.variables.length],
       ]
-    ))
-  
-    return lines.join("\n\n")
+    )
+  )
+
+  // Flow Diagram
+  sections.push(
+    `## Integration Flow`,
+    buildFlowDiagram(metadata)
+  )
+
+  // Analysis 
+  const findings = analyze(metadata)
+  if (findings.length > 0) {
+    const rows = findings.map((f) => [
+      SEVERITY_EMOJI[f.severity],
+      `**${f.title}**`,
+      f.detail,
+      f.affected && f.affected.length > 0
+        ? f.affected.map((a) => `\`${a}\``).join(", ")
+        : "—",
+    ])
+
+    sections.push(
+      `## Analysis`,
+      buildTable(["", "Finding", "Detail", "Affected"], rows)
+    )
   }
-  
-  function buildTriggers(triggers) {
-    if (!triggers.length) return null
-  
-    return [
-      "## Triggers",
-      `_${triggers.length} trigger(s) found_`,
+
+  // Triggers 
+  if (metadata.triggers.length) {
+    sections.push(
+      `## Triggers`,
       buildTable(
-        ["Name", "Type", "Connection"],
-        triggers.map((t) => [t.name, t.type, t.connection || "—"])
-      ),
-    ].join("\n\n")
+        ["Name", "Connection", "Adapter", "Operation", "Security", "Status"],
+        metadata.triggers.map((t) => [
+          t.name,
+          t.connection  || "—",
+          t.adapterType || "—",
+          t.operation   || "—",
+          t.security    || "—",
+          t.status      || "—",
+        ])
+      )
+    )
   }
-  
-  function buildInvokes(invokes) {
-    if (!invokes.length) return null
-  
-    return [
-      "## Invoke Connections",
-      `_${invokes.length} invoke(s) found_`,
+
+  // Invoke Connections 
+  if (metadata.invokes.length) {
+    sections.push(
+      `## Invoke Connections`,
       buildTable(
-        ["Name", "Type", "Connection", "Operation"],
-        invokes.map((i) => [i.name, i.type, i.connection || "—", i.operation || "—"])
-      ),
-    ].join("\n\n")
+        ["Name", "Connection", "Adapter", "Binding", "Operation", "Security", "Status"],
+        metadata.invokes.map((i) => [
+          i.name,
+          i.connection  || "—",
+          i.adapterType || "—",
+          i.binding     || "—",
+          i.operation   || "—",
+          i.security    || "—",
+          i.status      || "—",
+        ])
+      )
+    )
   }
-  
-  function buildFaultHandlers(faultHandlers) {
-    if (!faultHandlers.length) return null
-  
-    return [
-      "## Fault Handlers",
-      `_${faultHandlers.length} fault handler(s) found_`,
+
+  // Fault Handlers 
+  if (metadata.faultHandlers.length) {
+    sections.push(
+      `## Fault Handlers`,
       buildTable(
-        ["Name", "Fault Name", "Action"],
-        faultHandlers.map((f) => [f.name, f.faultName || "—", f.action])
-      ),
-    ].join("\n\n")
+        ["Fault Name", "Action"],
+        metadata.faultHandlers.map((f) => [
+          f.faultName || "GenericFault",
+          f.action    || "—",
+        ])
+      )
+    )
   }
-  
-  function buildVariables(variables) {
-    if (!variables.length) return null
-  
-    return [
-      "## Variables",
-      `_${variables.length} variable(s) found_`,
+
+  // Variables 
+  if (metadata.variables.length) {
+    sections.push(
+      `## Variables`,
       buildTable(
-        ["Name", "Type", "Scope"],
-        variables.map((v) => [v.name, v.type, v.scope])
-      ),
-    ].join("\n\n")
+        ["Name", "Type", "Scope", "Primary"],
+        metadata.variables.map((v) => [
+          v.name  || "unnamed",
+          v.type  || "—",
+          v.scope || "—",
+          v.primary ? "✓" : "—",
+        ])
+      )
+    )
   }
-  
-  function buildFooter() {
-    return `_Documentation generated by OIC Doc Generator_`
-  }
-  
-  // ─────────────────────────────────────────────
-  // Utility
-  // ─────────────────────────────────────────────
-  
-  /**
-   * Builds a Markdown table string.
-   * @param {string[]} headers
-   * @param {string[][]} rows
-   */
-  function buildTable(headers, rows) {
-    const separator = headers.map(() => "---")
-  
-    const toRow = (cols) => `| ${cols.join(" | ")} |`
-  
+
+  return sections.filter(Boolean).join("\n\n---\n\n")
+}
+
+
+// Flow diagram as ASCII art
+function buildFlowDiagram(metadata) {
+  const { triggers, invokes, faultHandlers } = metadata
+
+  const mainNodes = [
+    ...triggers.map((t) => ({ ...t, kind: "trigger" })),
+    ...invokes.map((i)  => ({ ...i, kind: "invoke"  })),
+  ]
+
+  if (!mainNodes.length) return "_No nodes defined._"
+
+  // Build main flow row
+  const nodeBoxes = mainNodes.map((node) => {
+    const kind  = node.kind === "trigger" ? "TRIGGER" : "INVOKE"
+    const name  = truncate(node.name, 16)
+    const conn  = truncate(node.connection || node.adapterType || "", 16)
+    const width = 20
+
     return [
-      toRow(headers),
-      toRow(separator),
-      ...rows.map(toRow),
-    ].join("\n")
+      `┌${"─".repeat(width)}┐`,
+      `│ ${pad(kind, width - 2)} │`,
+      `│ ${pad(name, width - 2)} │`,
+      `│ ${pad(conn, width - 2)} │`,
+      `└${"─".repeat(width)}┘`,
+    ]
+  })
+
+  // Merge boxes side by side with arrows
+  const height    = nodeBoxes[0].length
+  const arrowRow  = Math.floor(height / 2)
+  const connector = " ──▶ "
+
+  const lines = Array.from({ length: height }, (_, row) => {
+    return nodeBoxes.map((box, i) => {
+      const isArrowRow = row === arrowRow
+      const arrow      = isArrowRow && i < nodeBoxes.length - 1 ? connector : " ".repeat(connector.length)
+      return box[row] + (i < nodeBoxes.length - 1 ? arrow : "")
+    }).join("")
+  })
+
+  let diagram = "```\n" + lines.join("\n") + "\n```"
+
+  // Fault handlers below
+  if (faultHandlers.length > 0) {
+    const faultWidth = 20
+    const faultBoxes = faultHandlers.map((f) => {
+      const name   = truncate(f.faultName || "GenericFault", 16)
+      const action = truncate(f.action || "—", 16)
+      return [
+        `┌${"─".repeat(faultWidth)}┐`,
+        `│ ${pad("FAULT", faultWidth - 2)} │`,
+        `│ ${pad(name,   faultWidth - 2)} │`,
+        `│ ${pad(action, faultWidth - 2)} │`,
+        `└${"─".repeat(faultWidth)}┘`,
+      ]
+    })
+
+    const faultLines = Array.from({ length: faultBoxes[0].length }, (_, row) => {
+      return faultBoxes.map((box, i) => {
+        return box[row] + (i < faultBoxes.length - 1 ? "   " : "")
+      }).join("")
+    })
+
+    diagram +=
+      "\n\n**Fault Handlers:**\n\n" +
+      "```\n" +
+      "        │ fault\n" +
+      "        ▼\n" +
+      faultLines.join("\n") +
+      "\n```"
   }
+
+  return diagram
+}
+
+
+// Helpers
+function buildTable(headers, rows) {
+  if (!rows.length) return "_None found._"
+
+  const header    = `| ${headers.join(" | ")} |`
+  const separator = `| ${headers.map(() => "---").join(" | ")} |`
+  const body      = rows.map((row) => `| ${row.join(" | ")} |`).join("\n")
+
+  return [header, separator, body].join("\n")
+}
+
+function truncate(str, max) {
+  if (!str) return ""
+  str = String(str)
+  return str.length > max ? str.slice(0, max - 1) + "…" : str
+}
+
+function pad(str, width) {
+  str = String(str || "")
+  return str.length >= width ? str.slice(0, width) : str + " ".repeat(width - str.length)
+}
+
+const SEVERITY_EMOJI = {
+  risk:       "🔴",
+  suggestion: "🟡",
+  info:       "🔵",
+}

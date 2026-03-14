@@ -18,10 +18,8 @@ export async function parseIar(file) {
   return extractMetadata(projectDom, connections, file.name)
 }
 
-// ─────────────────────────────────────────────
-// Locators
-// ─────────────────────────────────────────────
 
+// Locators
 function findProjectXml(zip) {
   const path = Object.keys(zip.files).find((name) =>
     name.includes("PROJECT-INF/project.xml")
@@ -56,10 +54,8 @@ async function extractConnections(zip) {
   return connections
 }
 
-// ─────────────────────────────────────────────
-// Metadata extraction
-// ─────────────────────────────────────────────
 
+// Metadata extraction
 function extractMetadata(dom, connections, fileName) {
   return {
     source:          "iar",
@@ -160,10 +156,8 @@ function extractVariables(dom) {
   })
 }
 
-// ─────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────
 
+// Helpers
 function parseDom(xmlString) {
   const parser = new DOMParser()
   const dom    = parser.parseFromString(xmlString, "application/xml")
@@ -173,9 +167,7 @@ function parseDom(xmlString) {
 }
 
 function getApplicationsByRole(dom, role) {
-  // querySelectorAll is namespace-agnostic for localName in browser DOM
-  // but we filter strictly by direct child role text to avoid matching
-  // nested role elements inside inbound/outbound nodes
+  
   return [...dom.querySelectorAll("application")].filter((app) => {
     const roleEl = [...app.children].find(
       (child) => child.localName === "role"
@@ -215,10 +207,8 @@ function getText(node, tag) {
   return el ? el.textContent.trim() : null
 }
 
-// ─────────────────────────────────────────────
-// Debug helper — remove after development
-// ─────────────────────────────────────────────
 
+// Debug helper — remove after development
 export async function debugIar(file) {
   const zip = new JSZip()
   const contents = await zip.loadAsync(file)

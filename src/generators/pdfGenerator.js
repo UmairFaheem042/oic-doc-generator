@@ -1,17 +1,18 @@
 import jsPDF from "jspdf"
+import { analyze } from "../analyzers/integrationAnalyzer"
 
-// ── Theme — mirrors the webapp exactly ──────────
+// LIGHT MODE PDF
 const THEME = {
-  bg:          [8,   8,   9],
-  bgCard:      [12,  12,  14],
-  bgBadgeGood: [15,  42,  26],
-  bgBadgePri:  [26,  26,  15],
-  border:      [28,  28,  31],
-  accent:      [255, 138, 0],
-  textPrimary: [240, 237, 232],
-  textMuted:   [168, 164, 158],
-  textDim:     [61,  59,  56],
-  textGreen:   [34,  197, 94],
+  bg:          [255, 255, 255],
+  bgCard:      [248, 247, 244],
+  bgBadgeGood: [240, 253, 244],
+  bgBadgePri:  [255, 251, 235],
+  border:      [221, 219, 212],
+  accent:      [217, 119,   6],
+  textPrimary: [ 26,  25,  22],
+  textMuted:   [ 87,  83,  78],
+  textDim:     [168, 162, 158],
+  textGreen:   [ 22, 163,  74],
   white:       [255, 255, 255],
 }
 
@@ -24,7 +25,7 @@ export function generatePdf(metadata) {
   const doc = new jsPDF({ unit: "mm", format: "a4" })
   let y = 0
 
-  // ── Page setup ──────────────────────────────
+  // Page setup 
   function newPage() {
     doc.addPage()
     drawPageBg()
@@ -47,7 +48,7 @@ export function generatePdf(metadata) {
     if (y + needed > PAGE_H - MARGIN) newPage()
   }
 
-  // ── Drawing primitives ──────────────────────
+  // Drawing primitives 
   function setFont(style = "normal", size = 10) {
     doc.setFont("courier", style)
     doc.setFontSize(size)
@@ -82,9 +83,7 @@ export function generatePdf(metadata) {
     return pw
   }
 
-  // ─────────────────────────────────────────────
   // PAGE 1 — Header
-  // ─────────────────────────────────────────────
   drawPageBg()
   drawAccentLine()
   y = MARGIN + 6
@@ -109,7 +108,7 @@ export function generatePdf(metadata) {
   hLine(y)
   y += 8
 
-  // ── Summary cards ───────────────────────────
+  // Summary cards
   const cardW = (CONTENT_W - 9) / 4
   const cardH = 22
   const cards = [
@@ -134,10 +133,96 @@ export function generatePdf(metadata) {
   })
 
   y += cardH + 10
+  
 
-  // ─────────────────────────────────────────────
+  // Analysis 
+y += 4
+checkPageBreak(16)
+setFont("bold", 9)
+text("ANALYSIS", MARGIN, y, THEME.textPrimary)
+y += 2
+hLine(y)
+y += 6
+
+const findings = analyze(metadata)
+
+if (findings.length === 0) {
+  setFont("normal", 8)
+  text("No issues found — integration looks good.", MARGIN, y, THEME.textDim)
+  y += 8
+} else {
+  const SEVERITY_STYLES = {
+    risk:       { label: "RISK",       color: [220,  38,  38], bg: [255, 245, 245] },
+    suggestion: { label: "SUGGESTION", color: [217, 119,   6], bg: [255, 251, 235] },
+    info:       { label: "INFO",       color: [ 87,  83,  78], bg: [245, 244, 240] },
+  }
+
+  findings.forEach((finding) => {
+    checkPageBreak(18)
+
+    const cfg     = SEVERITY_STYLES[finding.severity]
+    const badgeW  = finding.severity === "suggestion" ? 22 : 10
+
+    // Row background
+    doc.setFillColor(...cfg.bg)
+    doc.roundedRect(MARGIN, y - 4, CONTENT_W, 14, 1.5, 1.5, "F")
+
+    // Severity badge
+    setFont("bold", 6.5)
+    const badgePad = 3
+    const bw = doc.getTextWidth(cfg.label) + badgePad * 2
+    doc.setFillColor(...cfg.color)
+    doc.roundedRect(MARGIN + 3, y - 2.5, bw, 5, 1, 1, "F")
+    // doc.setTextColor(8, 8, 9)
+    doc.setTextColor(255, 255, 255) 
+    doc.text(cfg.label, MARGIN + 3 + badgePad, y + 1.2)
+
+    // Title
+    setFont("bold", 8.5)
+    doc.setTextColor(...THEME.textPrimary)
+    doc.text(
+      truncatePdf(finding.title, 60),
+      MARGIN + bw + 7,
+      y + 1
+    )
+
+    // Detail — on next line
+    setFont("normal", 7.5)
+    doc.setTextColor(...THEME.textMuted)
+    const detailLines = doc.splitTextToSize(finding.detail, CONTENT_W - 6)
+    detailLines.slice(0, 2).forEach((line, li) => {
+      checkPageBreak(6)
+      doc.text(line, MARGIN + 3, y + 7 + li * 5)
+    })
+
+    // Affected tags
+    if (finding.affected && finding.affected.length > 0) {
+      const tagsY   = y + 7 + Math.min(detailLines.length, 2) * 5
+      let   tagX    = MARGIN + 3
+      setFont("normal", 6)
+      finding.affected.slice(0, 5).forEach((name) => {
+        const tw = doc.getTextWidth(name) + 6
+        if (tagX + tw > PAGE_W - MARGIN) return
+        doc.setFillColor(...THEME.border)
+        doc.roundedRect(tagX, tagsY - 2.5, tw, 4.5, 1, 1, "F")
+        doc.setTextColor(...THEME.textDim)
+        doc.text(name, tagX + 3, tagsY + 1)
+        tagX += tw + 3
+      })
+      y += tagsY - y + 8
+    } else {
+      y += 7 + Math.min(detailLines.length, 2) * 5 + 4
+    }
+
+    y += 4
+  })
+}
+
+hLine(y)
+y += 10
+
+
   // Section helpers
-  // ─────────────────────────────────────────────
   function sectionHeader(title, count) {
     checkPageBreak(16)
     setFont("bold", 9)
@@ -165,7 +250,7 @@ export function generatePdf(metadata) {
   function tableRow(cols, isAlt = false) {
     checkPageBreak(9)
     if (isAlt) {
-      doc.setFillColor(14, 14, 16)
+      doc.setFillColor(255, 255, 255)
       doc.rect(MARGIN, y - 3.5, CONTENT_W, 7.5, "F")
     }
     setFont("normal", 8)
@@ -193,10 +278,7 @@ export function generatePdf(metadata) {
     y += 8
   }
 
-  // ─────────────────────────────────────────────
   // Data sections
-  // ─────────────────────────────────────────────
-
   // Triggers
   sectionHeader("Triggers", metadata.triggers.length)
   if (!metadata.triggers.length) {
@@ -290,9 +372,7 @@ export function generatePdf(metadata) {
     })
   }
 
-  // ─────────────────────────────────────────────
   // Footer — after all pages are built
-  // ─────────────────────────────────────────────
   const totalPages = doc.getNumberOfPages()
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p)
@@ -307,7 +387,7 @@ export function generatePdf(metadata) {
     )
   }
 
-  // ── Save ─────────────────────────────────────
+  // Save
   const filename = `${metadata.integrationName.replace(/\s+/g, "_")}_docs.pdf`
   doc.save(filename)
 }

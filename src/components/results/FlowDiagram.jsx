@@ -12,7 +12,7 @@ const ZOOM_MIN  = 0.3
 const ZOOM_MAX  = 2.5
 const ZOOM_STEP = 0.1
 
-// ── Theme-aware color maps ───────────────────
+// Theme-aware color maps
 function getColors(theme) {
   const dark = theme === "dark"
   return {
@@ -41,7 +41,8 @@ function getColors(theme) {
 }
 
 export default function FlowDiagram() {
-  const { parsedMetadata, theme } = useIntegrationStore()
+  const parsedMetadata = useIntegrationStore((s) => s.parsedMetadata)
+const theme          = useIntegrationStore((s) => s.theme)
 
   const containerRef = useRef(null)
   const dragStart    = useRef(null)
@@ -60,8 +61,7 @@ export default function FlowDiagram() {
   ]
 
   const hasFaults   = faultHandlers.length > 0
-  // const svgW        = MARGIN_X * 2 + mainNodes.length * NODE_W + (mainNodes.length - 1) * H_GAP
-  // ── Calculate fault row width ────────────────
+ 
 const faultNodeW  = 130
 const faultHGap   = 16
 const totalFaultW = faultHandlers.length * faultNodeW + (faultHandlers.length - 1) * faultHGap
@@ -88,7 +88,7 @@ const svgW = Math.max(mainRowWidth, faultRowRight + MARGIN_X)
   const mainY  = MARGIN_Y
   const faultY = mainY + NODE_H + FAULT_OFFSET
 
-  // ── Fit to view ──────────────────────────────
+  // Fit to view
   const fitToView = useCallback(() => {
     if (!containerRef.current) return
     const containerW = containerRef.current.offsetWidth
@@ -104,7 +104,7 @@ const svgW = Math.max(mainRowWidth, faultRowRight + MARGIN_X)
     fitToView()
   }, [fitToView])
 
-  // ── Wheel zoom ───────────────────────────────
+  // Wheel zoom
   const handleWheel = useCallback((e) => {
     e.preventDefault()
     const delta = e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP
@@ -121,7 +121,7 @@ const svgW = Math.max(mainRowWidth, faultRowRight + MARGIN_X)
     return () => el.removeEventListener("wheel", handleWheel)
   }, [handleWheel])
 
-  // ── Global mouseup ───────────────────────────
+  // Global mouseup
   useEffect(() => {
     function handleGlobalMouseUp() {
       setDragging(false)
@@ -131,7 +131,7 @@ const svgW = Math.max(mainRowWidth, faultRowRight + MARGIN_X)
     return () => window.removeEventListener("mouseup", handleGlobalMouseUp)
   }, [])
 
-  // ── Drag ─────────────────────────────────────
+  // Drag
   const onMouseDown = useCallback((e) => {
     e.preventDefault()
     setDragging(true)
@@ -156,7 +156,7 @@ const svgW = Math.max(mainRowWidth, faultRowRight + MARGIN_X)
     }))
   }, [dragging])
 
-  // ── Zoom buttons ─────────────────────────────
+  // Zoom buttons
   function zoomIn()    { setTransform((p) => ({ ...p, scale: Math.min(ZOOM_MAX, p.scale + ZOOM_STEP) })) }
   function zoomOut()   { setTransform((p) => ({ ...p, scale: Math.max(ZOOM_MIN, p.scale - ZOOM_STEP) })) }
   function zoomReset() { setTransform({ x: 0, y: 0, scale: 1 }) }
@@ -344,10 +344,7 @@ const svgW = Math.max(mainRowWidth, faultRowRight + MARGIN_X)
   )
 }
 
-// ─────────────────────────────────────────────
 // FlowNode
-// ─────────────────────────────────────────────
-
 function FlowNode({ x, y, w, h, node, isTrigger, C }) {
   return (
     <g filter={isTrigger ? "url(#glow)" : undefined}>
@@ -378,10 +375,8 @@ function FlowNode({ x, y, w, h, node, isTrigger, C }) {
   )
 }
 
-// ─────────────────────────────────────────────
-// FaultNode
-// ─────────────────────────────────────────────
 
+// FaultNode
 function FaultNode({ x, y, w, h, label, action, C }) {
   return (
     <g>
@@ -407,10 +402,8 @@ function FaultNode({ x, y, w, h, label, action, C }) {
   )
 }
 
-// ─────────────────────────────────────────────
-// ZoomButton
-// ─────────────────────────────────────────────
 
+// ZoomButton
 function ZoomButton({ onClick, label, C, title }) {
   return (
     <button
@@ -445,10 +438,8 @@ function ZoomButton({ onClick, label, C, title }) {
   )
 }
 
-// ─────────────────────────────────────────────
-// Utility
-// ─────────────────────────────────────────────
 
+// Utility
 function truncate(str, max) {
   if (!str) return ""
   return str.length > max ? str.slice(0, max - 1) + "…" : str

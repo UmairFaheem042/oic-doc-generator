@@ -1,24 +1,10 @@
 Remaining Steps
-IMPORTANT:
-    In the FLOW Section: if integration is big then the right side gets trimmed, also in PDF only the default View of Flow gets captured, how to deal with it in PDF?
-
-Step 18 — Navigation / View routing
-- Right now everything is in one flat view. As the app grows we need a proper way to move between Upload → Results → (future views). Simple state-based routing inside Zustand — no React Router needed yet.
-
-Step 19 — Analysis panel
-- A dedicated section that auto-generates observations from the parsed metadata. Things like:
-    - "This integration has no fault handlers on invoke connections — risk of unhandled errors"
-    - "BASIC_AUTH detected on outbound connection — consider OAuth"
-    - "Only 1 tracking variable set as primary"
-Pure logic, no AI needed. Rule-based analysis from the metadata shape.
-
 Step 20 — Multi-file / history
 - Allow uploading multiple .iar files in a session and switching between them. Store parsed results in a list in Zustand. Useful for comparing integrations.
 
 Step 21 — Backend scaffold
 - Move parsers and generators to an Express or FastAPI backend. Frontend stays identical — just swap fetch calls. This unlocks larger file handling, server-side PDF generation, and eventually a database for saving docs.
 
-Step 22 — Export improvements
-- PDF cover page with logo/branding
-- Word document (.docx) export
-- Copy-to-clipboard for individual sections
+Few bugs:
+- Why by default Fault Node is showing? (is it global?) -- APIInvocationError
+- Though i used Trigger Connection but i am getting it in Invoke (binding says rest)
